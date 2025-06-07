@@ -1,0 +1,10 @@
+## Bybit Platform Features (Summarized from Report)
+
+**Core Trading Products:**
+*   Spot Trading: Buying and selling cryptocurrencies at current market prices.
+*   Derivatives Trading:
+    *   USDT Perpetual Contracts
+    *   Inverse Contracts
+    *   Futures Contracts
+    *   Options
+*   Leverage Trading: Available for derivatives, allowing traders to open positions larger than their capital.

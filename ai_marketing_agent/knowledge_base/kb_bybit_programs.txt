@@ -1,0 +1,21 @@
+## Bybit Program Details (Summarized from Report Section 2)
+
+**Bybit Referral Program:**
+*   Target Audience: Existing Bybit users inviting friends.
+*   Reward Structure: For both referrer and referred (e.g., USDT rewards, Mystery Box). Commission up to 30% on referee's trades for 365 days.
+*   Qualified Referee Requirements:
+    *   Sign up via specific referral link/code.
+    *   Cumulative deposit >= 100 USDT within 7 days (One-Click Buy, P2P, Crypto Deposits, Fiat Deposits).
+    *   Trading volume >= 500 USDT (Spot or Derivatives) within 30 days. (Grid Bot, MT5, zero-fee pairs do not count).
+*   Commission Tiers: 20% (default), 25% (5 qualified referees/quarter), 30% (100 qualified referees/quarter or 5M quarterly volume).
+*   Important: Rewards must be claimed from Rewards Hub.
+
+**Bybit Affiliate Program:**
+*   Target Audience: Influencers, bloggers, content creators, publishers with qualifying websites/networks.
+*   Reward Structure: Perpetual commission based on trading volume of referred traders (up to 50% revenue share). 5% on Bybit Earn usage by referrals, 10% if client becomes sub-affiliate.
+*   Key Features: Lifetime commissions (real-time calculation), dedicated account manager, promotional materials. No earnings cap.
+*   Payouts: Daily by 4 AM UTC, withdrawable from Affiliate Portal to Trading Account.
+*   Application: Via affiliates.bybit.com, requires assessment.
+
+**Strategic Implication:**
+*   Affiliate Program is more scalable for "colossal visibility" and higher, perpetual commissions. AI agent should primarily focus on this.
