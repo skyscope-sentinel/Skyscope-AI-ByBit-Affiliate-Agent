@@ -1,0 +1,4 @@
+## Bybit Features Summary
+- Spot Trading: Wide range of pairs.
+- Derivatives: USDT Perpetuals, Options.
+- Bybit Earn: Staking, Savings.
