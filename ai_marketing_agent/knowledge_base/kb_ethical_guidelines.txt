@@ -1,6 +1,4 @@
-## Ethical Marketing and Compliance Guidelines (Summarized from Report Section 5)
-
-**1. Disclosure of Affiliate Relationship:**
-*   Mandatory: Clear and conspicuous disclosure (e.g., #Ad, #Sponsored, #BybitAffiliate, "Paid Partnership").
-**2. Avoiding Misleading Claims and Guarantees:**
-*   Truthful Advertising: All claims must be verifiable.
+## Ethical Marketing Guidelines Summary
+- Disclosure: Always use #Ad or equivalent.
+- Honesty: No profit guarantees. Avoid hype.
+- Risk Warnings: Include disclaimers about volatility.

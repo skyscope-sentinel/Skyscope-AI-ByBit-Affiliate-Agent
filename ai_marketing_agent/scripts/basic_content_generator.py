@@ -1,200 +1,290 @@
+
 import yaml
 import os
 import random
 from datetime import datetime
+import google.generativeai as genai
+import re
 
 CONFIG_PATH = "ai_marketing_agent/config/settings.yaml"
 KB_DIR = "ai_marketing_agent/knowledge_base"
-IDEAS_FILE = "ai_marketing_agent/generated_content/content_ideas.txt"
+IDEAS_FILE = "ai_marketing_agent/generated_content/content_ideas.txt" # Fallback
+NEXT_IDEA_FILE = "ai_marketing_agent/generated_content/next_article_to_generate.txt"
 OUTPUT_DIR = "ai_marketing_agent/generated_content"
 
 def load_config():
-    """Loads the configuration from the YAML file."""
     try:
-        with open(CONFIG_PATH, 'r') as f:
-            config = yaml.safe_load(f)
+        with open(CONFIG_PATH, 'r') as f: config = yaml.safe_load(f)
+        if not config: # Check if config is None or empty
+            print(f"CRITICAL: Config file {CONFIG_PATH} is empty or malformed!")
+            return None
         return config
+    except FileNotFoundError:
+        print(f"CRITICAL: Config file {CONFIG_PATH} not found!")
+        return None
     except Exception as e:
         print(f"Error loading config {CONFIG_PATH}: {e}")
         return None
 
 def load_knowledge_base_file(filename):
-    """Loads a specific file from the knowledge base directory."""
     filepath = os.path.join(KB_DIR, filename)
     try:
-        with open(filepath, 'r') as f:
-            return f.read()
+        with open(filepath, 'r') as f: return f.read()
+    except FileNotFoundError:
+        print(f"Warning: KB file {filepath} not found. Proceeding with empty content for this KB.")
+        return "" # Return empty string if KB file not found, script can handle this
     except Exception as e:
-        print(f"Error loading knowledge base file {filepath}: {e}")
+        print(f"Error loading KB file {filepath}: {e}")
         return ""
 
-def load_content_ideas():
-    """Loads content ideas from the ideas file."""
+def load_content_ideas(): # Fallback
     try:
         with open(IDEAS_FILE, 'r') as f:
-            # Skip header lines
-            lines = [line.strip() for line in f.readlines() if line.strip() and not line.startswith("=")]
-            if len(lines) > 1: # Check if there are ideas after header
-                 # Remove potential header like "Content Ideas Generated on..."
-                if "Content Ideas Generated on" in lines[0]:
-                    lines = lines[1:]
-                # Remove lines that are just separators like "==="
-                lines = [line for line in lines if not all(c == '=' for c in line)]
-                 # Remove empty lines again after filtering
-                lines = [line for line in lines if line.strip()]
-                # Remove the leading "- " from ideas
-                return [line[2:] if line.startswith("- ") else line for line in lines if line.strip()]
+            lines = [line.strip() for line in f.readlines() if line.strip() and not line.startswith("=") and not "Content Ideas Generated on" in line]
+            lines = [line for line in lines if line]
+            return [line[2:] if line.startswith("- ") else line for line in lines if line.strip()]
+    except FileNotFoundError: # Explicitly handle FileNotFoundError
+        print(f"Warning: Fallback ideas file {IDEAS_FILE} not found.")
         return []
     except Exception as e:
-        print(f"Error loading content ideas from {IDEAS_FILE}: {e}")
+        print(f"Error loading fallback ideas from {IDEAS_FILE}: {e}")
         return []
 
-def generate_blog_post_draft(idea, config, kb_features, kb_ethics):
-    """Generates a simulated blog post draft using templates."""
-    if not config:
-        return "Error: Config not loaded."
+def load_next_idea():
+    try:
+        # Ensure directory for NEXT_IDEA_FILE exists before trying to read from it
+        os.makedirs(os.path.dirname(NEXT_IDEA_FILE), exist_ok=True)
+        if not os.path.exists(NEXT_IDEA_FILE):
+             print(f"Info: Strategic choice file {NEXT_IDEA_FILE} not found. Will use fallback ideas list.")
+             return None
+        with open(NEXT_IDEA_FILE, 'r') as f:
+            chosen_idea = f.read().strip()
+            # Return None if file is empty, so fallback can be triggered
+            return chosen_idea if chosen_idea else None
+    except Exception as e:
+        print(f"Error loading next idea from {NEXT_IDEA_FILE}: {e}")
+        return None
 
-    affiliate_link = config.get('bybit_affiliate_link', '[YOUR_AFFILIATE_LINK]')
-    author = config.get('default_author', 'Bybit Enthusiast')
-    disclosure = config.get('compliance', {}).get('disclosure_texts', {}).get('blog', '#Ad')
-    risk_disclaimer = config.get('compliance', {}).get('risk_disclaimer', 'Trade responsibly.')
+def get_content_type(idea_text):
+    if not idea_text: return "general_article" # Handle None or empty idea_text
+    idea_lower = idea_text.lower()
+    if "how to" in idea_lower or "guide" in idea_lower or "getting started" in idea_lower: return "how-to"
+    if "vs" in idea_lower or "versus" in idea_lower or "compare" in idea_lower: return "comparison"
+    if "what is" in idea_lower or "explaining" in idea_lower or "understanding" in idea_lower: return "explainer"
+    if "review" in idea_lower: return "review"
+    if "news" in idea_lower or "update" in idea_lower or "latest" in idea_lower: return "news_update"
+    return "general_article"
 
-    # Simulate using a couple of features
-    feature_lines = kb_features.split('\n')
-    # Ensure k is not greater than the population size for random.sample
-    valid_feature_lines = [line for line in feature_lines if line.strip() and not line.startswith("##")]
-    sample_k = min(2, len(valid_feature_lines))
-    simulated_feature_discussion = "\n".join(random.sample(valid_feature_lines, k=sample_k)) if valid_feature_lines else "No features available to discuss."
+def generate_llm_content(prompt_text, api_key):
+    try:
+        genai.configure(api_key=api_key)
+        model_name = "gemini-1.0-pro"
+        model = genai.GenerativeModel(model_name)
+        print(f"\nAttempting LLM generation (model: {model_name})...")
+        safety_settings = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+        ]
+        response = model.generate_content(prompt_text, safety_settings=safety_settings)
 
-    draft = f"""---
-Title: {idea}
-Author: {author}
-Date: {datetime.now().strftime('%Y-%m-%d')}
-Tags: Bybit, Crypto, Trading, {random.choice(config.get('target_keywords', ['exchange']))}
----
+        if response.prompt_feedback and response.prompt_feedback.block_reason:
+            return f"Error: Prompt blocked by API ({response.prompt_feedback.block_reason}). Review prompt or safety settings."
+        if not response.candidates: # Check if candidates list is empty
+             return f"Error: No candidates from LLM. Prompt may be too restrictive or issue with API. Response details: {response}"
 
-{disclosure}
+        candidate = response.candidates[0]
+        if candidate.finish_reason.name != "STOP":
+             finish_reason_message = f"Warning: LLM generation finished with reason: {candidate.finish_reason.name}."
+             if candidate.finish_reason.name == "SAFETY":
+                  safety_info = " Safety details: "
+                  if candidate.safety_ratings:
+                      for rating in candidate.safety_ratings:
+                          if rating.probability.name != "NEGLIGIBLE":
+                              safety_info += f" {rating.category.name} - {rating.probability.name};"
+                  return f"Error: Generation stopped by safety filter.{safety_info if safety_info != ' Safety details: ' else ''}"
 
-## Introduction
+             if candidate.content and candidate.content.parts:
+                 print(finish_reason_message + " Partial content might be returned.")
+                 return "".join(part.text for part in candidate.content.parts)
+             return f"Error: Generation finished with reason '{candidate.finish_reason.name}' but no content. {finish_reason_message}"
 
-Welcome to our deep dive into '{idea}'. In the ever-evolving world of cryptocurrency, staying informed is key.
-This post aims to provide valuable insights for both beginners and experienced traders looking to leverage the Bybit platform.
+        if candidate.content and candidate.content.parts:
+            print("LLM content generated successfully.")
+            return "".join(part.text for part in candidate.content.parts)
 
-## Understanding the Core Concept
+        return "Error: No valid content parts in LLM response despite 'STOP' reason."
+    except Exception as e: # Catch more general exceptions from API call
+        return f"Error during LLM call: {e}"
 
-[This section would typically elaborate on the main topic of '{idea}'. For this simulation, we're keeping it brief.
-The AI would use its knowledge base and the specific idea to generate several paragraphs here.]
+def construct_prompt_v3(idea, content_type, persona, config, kb_features_summary, kb_ethics_summary, kb_programs_summary):
+    target_keywords_list = config.get('target_keywords', [])
+    default_primary_keyword = random.choice(target_keywords_list) if target_keywords_list else "Bybit trading"
 
-## Leveraging Bybit for '{idea}'
+    if persona and persona.get('keywords'): # Check if persona and its keywords exist
+        primary_keyword = random.choice(persona['keywords'])
+    else:
+        primary_keyword = default_primary_keyword
 
-Bybit offers a robust suite of tools and features that can help you navigate the complexities of the crypto market.
-Here are a couple of relevant aspects:
+    affiliate_link = config.get('bybit_affiliate_link', 'YOUR_BYBIT_LINK')
+    blog_disclosure = config.get('compliance', {}).get('disclosure_texts', {}).get('blog', '#Ad #BybitAffiliate')
+    risk_disclaimer = config.get('compliance', {}).get('risk_disclaimer', 'Cryptocurrency investment is subject to high market risk.')
 
-{simulated_feature_discussion}
+    persona_name = persona['name'] if persona else "General User"
+    persona_desc = persona['description'] if persona else "A crypto enthusiast."
+    persona_tone = persona['preferred_tone'] if persona and 'preferred_tone' in persona else "clear, informative, and engaging"
 
-By exploring these features, users can enhance their trading strategies and potentially make more informed decisions.
-Remember to always do your own research (DYOR).
+    prompt = f'''
+You are an AI Marketing Assistant creating a blog post for Bybit, a cryptocurrency exchange.
+Your target audience is '{persona_name}': {persona_desc}.
+The tone of the article should be: {persona_tone}.
 
-## Getting Started with Bybit
+**Blog Post Title/Idea:** {idea}
+**Content Type to Generate:** {content_type}
+**Incorporate this Primary Keyword naturally:** {primary_keyword}
 
-Ready to explore what Bybit has to offer? You can sign up using our affiliate link: {affiliate_link}
-This helps support our content creation efforts at no extra cost to you!
+**Task:** Write a compelling and informative blog post of approximately 400-700 words. Use Markdown for formatting.
 
-## Important Considerations & Risks
+**Detailed Instructions based on Content Type '{content_type}':**
+'''
+    if content_type == "how-to":
+        prompt += "- Provide clear, actionable, step-by-step instructions. Simplify complex steps for the target persona.\n"
+        prompt += "- Focus on specific Bybit features or tools that make this 'how-to' easy or effective for the user.\n"
+    elif content_type == "comparison":
+        competitor_match = re.search(r"vs\.?\s*([\w\s]+)", idea, re.IGNORECASE)
+        competitor_name = competitor_match.group(1).strip() if competitor_match else "another platform"
+        prompt += f"- Objectively compare Bybit with '{competitor_name}' concerning aspects of '{idea}'.\n"
+        prompt += f"- Highlight Bybit's advantages, tailoring points to what '{persona_name}' would value most.\n"
+        prompt += f"- If specific, verifiable data for '{competitor_name}' isn't available, state this and focus on Bybit's offerings.\n"
+    elif content_type == "explainer":
+        prompt += f"- Explain the core concepts of '{idea}' in a way that is easily understandable for '{persona_name}'.\n"
+        prompt += f"- Clearly connect the explanation to practical applications or benefits on the Bybit platform.\n"
+    elif content_type == "review":
+        prompt += f"- Write a balanced and honest review of the subject matter in '{idea}'.\n"
+        prompt += f"- Discuss both pros and cons from the perspective of '{persona_name}'.\n"
+    else: # general_article, news_update
+        prompt += f"- Discuss the topic '{idea}' and its current relevance to '{persona_name}' in the crypto space.\n"
+        prompt += f"- Naturally integrate Bybit's role, related platform features, or services where appropriate.\n"
 
-[This section would discuss specific risks related to the content idea. The AI would pull from its ethical guidelines.]
+    prompt += f'''
+**Knowledge Base Context (Summaries - use these to inform your writing):**
+*   Key Bybit Features (for reference): ...{kb_features_summary}...
+*   Ethical Marketing Rules (Strictly Follow): ...{kb_ethics_summary}... (Crucial: No profit guarantees, be truthful, avoid hype)
+*   Bybit Programs Overview (for background context): ...{kb_programs_summary}...
 
-{kb_ethics[:300]}... (summary of ethical guidelines)
+**Mandatory Compliance Requirements:**
+1.  **Disclosure First:** The VERY FIRST line of the blog post MUST be: {blog_disclosure}
+2.  **Risk Disclaimer Last:** The VERY LAST line of the blog post MUST be: {risk_disclaimer}
+3.  **Call to Action:** Before the final risk disclaimer, include a relevant call to action. Examples: "Explore these features on Bybit: {affiliate_link}", "Ready to get started? Sign up at Bybit: {affiliate_link}"
 
-**Disclaimer:** {risk_disclaimer} All trading involves risk. Only invest what you can afford to lose.
-This content is for informational purposes only and should not be considered financial advice.
+Output ONLY the Markdown content for the blog post. Do not add any other text, commentary, or preambles before or after the Markdown content.
+'''
+    return prompt
 
----
-"""
-    return draft
-
-def generate_social_media_posts(idea, config):
-    """Generates simulated social media posts using templates."""
-    if not config:
-        return "Error: Config not loaded."
-
-    affiliate_link = config.get('bybit_affiliate_link', '[YOUR_AFFILIATE_LINK]')
-    disclosure = config.get('compliance', {}).get('disclosure_texts', {}).get('default', '#Ad')
-
-    posts = []
-    posts.append(f"**Twitter Post:**\nThinking about '{idea}'? Learn how Bybit can help! {affiliate_link} {disclosure} #Bybit #Crypto")
-    posts.append(f"**Facebook Post:**\n'{idea}' - A hot topic in crypto right now! We explore what this means for traders and how Bybit's platform provides the tools you need. Check it out: {affiliate_link} {disclosure}\n#BybitTrading #CryptoNews")
-    posts.append(f"**LinkedIn Post:**\nAn analysis of '{idea}' and its implications for the digital asset space. Bybit offers professional-grade tools for navigating these markets. More info: {affiliate_link} {disclosure} #Cryptocurrency #DigitalAssets #BybitPro")
-
-    return "\n\n".join(posts)
-
-def save_generated_content(content_type, idea, content_body):
-    """Saves the generated content to a timestamped file."""
-    if not os.path.exists(OUTPUT_DIR):
-        os.makedirs(OUTPUT_DIR)
-
+def save_generated_content(idea, content_type, persona_name, content_body):
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    # Sanitize idea for filename
-    safe_idea_part = "".join(c if c.isalnum() else "_" for c in idea[:30])
-    filename = f"draft_{content_type}_{safe_idea_part}_{timestamp}.txt"
+    persona_tag = persona_name.replace(" ", "_").lower() if persona_name else "general"
+    sanitized_idea = re.sub(r'[^a-zA-Z0-9_\-]', '_', idea[:30])
+    filename = f"llm_draft_{content_type}_{persona_tag}_{sanitized_idea}_{timestamp}.md"
     filepath = os.path.join(OUTPUT_DIR, filename)
 
-    header = f"""--- Generated Content ---
-Type: {content_type.capitalize()}
-Idea: {idea}
-Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
----
+    header = f"--- Generated Content (LLM) ---\n"
+    header += f"Type: {content_type.capitalize()}\n"
+    header += f"Idea: {idea}\n"
+    header += f"Persona: {persona_name if persona_name else 'N/A'}\n"
+    header += f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    header += f"--- \n\n"
 
-"""
     try:
-        with open(filepath, 'w') as f:
-            f.write(header)
-            f.write(content_body)
-        print(f"Successfully saved {content_type} content to {filepath}")
-    except IOError as e:
-        print(f"Error saving content to {filepath}: {e}")
+        with open(filepath, 'w') as f: f.write(header + content_body)
+        print(f"Successfully saved LLM-generated content to {filepath}")
+    except IOError as e: print(f"Error saving content to {filepath}: {e}")
 
 if __name__ == "__main__":
-    # Ensure PyYAML is installed
-    try:
-        import yaml
-    except ImportError:
-        print("PyYAML not found. Attempting to install...")
-        import subprocess
-        import sys
-        try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "pyyaml"])
-            print("PyYAML installed successfully.")
-            import yaml # Try importing again
-        except subprocess.CalledProcessError as e:
-            print(f"Failed to install PyYAML: {e}. Please install it manually.")
-            sys.exit(1)
-        except Exception as e: # General exception for import
-            print(f"An error occurred during PyYAML import after installation: {e}")
-            sys.exit(1)
-
-
+    print("Starting Enhanced LLM Content Generator (V3 - With Personas & Strategy Input)...")
     config_data = load_config()
     if not config_data:
-        print("Could not load configuration. Exiting.")
+        print("Exiting due to config load failure.")
+        exit(1)
+
+    gemini_api_key_name = config_data.get('gemini_api_key_env_var', "GEMINI_API_KEY")
+    api_key = os.environ.get(gemini_api_key_name)
+
+    if not api_key:
+        print(f"Error: API Key '{gemini_api_key_name}' not found in environment variables.")
+        print(f"Please run 'python ai_marketing_agent/scripts/setup_env.py' or set the variable manually.")
     else:
-        content_ideas = load_content_ideas()
-        if not content_ideas:
-            print("No content ideas found or error loading ideas. Exiting.")
-        else:
-            # For simulation, pick a random idea
+        print(f"API Key '{gemini_api_key_name}' found in environment.")
+
+        selected_idea = load_next_idea()
+        if not selected_idea or "Error:" in selected_idea:
+            print(f"No valid strategic idea from '{NEXT_IDEA_FILE}' (Content: '{selected_idea}'). Choosing randomly from general ideas list.")
+            content_ideas = load_content_ideas()
+            if not content_ideas:
+                print("No content ideas available at all (from content_ideas.txt). Exiting.");
+                exit(1)
             selected_idea = random.choice(content_ideas)
-            print(f"Selected content idea: {selected_idea}")
+            if not selected_idea:
+                 print("CRITICAL: No idea could be selected even from fallback. Exiting."); exit(1)
 
-            kb_features_content = load_knowledge_base_file("kb_bybit_features.txt")
-            kb_ethics_content = load_knowledge_base_file("kb_ethical_guidelines.txt")
+        content_type = get_content_type(selected_idea)
 
-            # Decide randomly to generate a blog post or social media posts for this simulation
-            if random.choice([True, False]):
-                print("Generating simulated blog post draft...")
-                blog_draft = generate_blog_post_draft(selected_idea, config_data, kb_features_content, kb_ethics_content)
-                save_generated_content("blog_post", selected_idea, blog_draft)
-            else:
-                print("Generating simulated social media posts...")
-                social_posts = generate_social_media_posts(selected_idea, config_data)
-                save_generated_content("social_media", selected_idea, social_posts)
+        personas = config_data.get('audience_personas', {})
+        chosen_persona_key = random.choice(list(personas.keys())) if personas else None
+        chosen_persona = personas.get(chosen_persona_key) if chosen_persona_key else None
+        persona_name_for_log = chosen_persona['name'] if chosen_persona else "General"
+
+        print(f"Selected idea: '{selected_idea}' (Type: {content_type}, Persona: {persona_name_for_log})")
+
+        kb_features_full = load_knowledge_base_file("kb_bybit_features.txt")
+        kb_ethics_full = load_knowledge_base_file("kb_ethical_guidelines.txt")
+        kb_programs_full = load_knowledge_base_file("kb_bybit_programs.txt")
+
+        features_summary = "\n".join(kb_features_full.split('\n')[:20])
+        ethics_summary = "\n".join(kb_ethics_full.split('\n')[:25])
+        programs_summary = "\n".join(kb_programs_full.split('\n')[:15])
+
+        prompt = construct_prompt_v3(selected_idea, content_type, chosen_persona, config_data,
+                                     features_summary, ethics_summary, programs_summary)
+
+        # print(f"\nDEBUG PROMPT V3 (first 1000 chars):\n{prompt[:1000]}...\n")
+
+        generated_text_raw = generate_llm_content(prompt, api_key)
+
+        if "Error:" not in generated_text_raw:
+            final_text = generated_text_raw.strip()
+
+            blog_disclosure = config_data.get('compliance', {}).get('disclosure_texts', {}).get('blog', '#Ad')
+            risk_disclaimer = config_data.get('compliance', {}).get('risk_disclaimer', 'Trade crypto responsibly.')
+
+            current_first_line = final_text.split('\n')[0].strip()
+            if not current_first_line.startswith(blog_disclosure):
+                print(f"Warning: Disclosure '{blog_disclosure}' not at the very start. Prepending.")
+                final_text = re.sub(r"^(#Ad|#BybitAffiliate|Disclosure:.*?)\s*\n*", "", final_text, flags=re.IGNORECASE | re.MULTILINE).strip()
+                final_text = f"{blog_disclosure}\n\n{final_text}"
+
+            if not final_text.strip().endswith(risk_disclaimer):
+                 print(f"Warning: Risk disclaimer '{risk_disclaimer}' not at the very end. Appending.")
+                 final_text = final_text.strip()
+                 if final_text.endswith("---"): final_text = final_text[:-3].strip()
+                 final_text = f"{final_text}\n\n---\n{risk_disclaimer}"
+
+            save_generated_content(selected_idea, content_type, persona_name_for_log, final_text)
+        else:
+            print(f"Content generation failed. LLM Output/Error: {generated_text_raw}")
+            debug_filename = f"failed_prompt_and_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+            debug_filepath = os.path.join(OUTPUT_DIR, debug_filename)
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
+            try:
+                with open(debug_filepath, 'w') as df:
+                    df.write("--- FAILED PROMPT ---\n")
+                    df.write(prompt)
+                    df.write("\n\n--- LLM ERROR/OUTPUT ---\n")
+                    df.write(generated_text_raw)
+                print(f"Saved failed prompt and error to {debug_filepath}")
+            except Exception as e_debug:
+                print(f"Error saving debug file: {e_debug}")
+
+    print("\nEnhanced Content Generator script (V3 with personas) finished.")
