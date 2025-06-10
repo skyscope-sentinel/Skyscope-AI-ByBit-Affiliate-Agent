@@ -1,0 +1,47 @@
+--- Ad Copy Examples Generated on 2025-06-06 23:44:41 ---
+This file contains simulated ad copy.
+It includes placeholders for where real API calls to Google Ads would occur.
+Compliance checks (disclosures, restricted keywords) are simulated based on config.
+==================================================
+
+**Ad Example 1**
+  Campaign Name (Simulated): Bybit_Brand_Generic
+  Ad Group (Simulated): General_Crypto_Interest
+  Headlines:
+    - Trade Crypto on Bybit #Ad
+    - Low Fees, Top Security
+    - Sign Up & Get Bonus!
+  Descriptions:
+    - Join Bybit for advanced trading tools, 24/7 support. Is Bybit safe?. Sign up today!
+    - Explore Spot, Derivatives, and Earn products. Your premier crypto destination.
+  Final URL (Placeholder): https://www.bybit.com/your-affiliate-link
+  Display URL (Simulated): www.bybit.com/Trade
+  Notes: Generic brand awareness ad.
+
+**Ad Example 2**
+  Campaign Name (Simulated): Bybit_Feature_A_Beginner's_Gu
+  Ad Group (Simulated): A_Beginner's_Guide_t_Target
+  Headlines:
+    - A Beginner's Guide to Bybit futures on Bybit on Bybit #Ad
+    - Learn & Trade Today
+    - Expert Tools & Guides
+  Descriptions:
+    - Discover A Beginner's Guide to Bybit futures on Bybit. Bybit offers resources and tools for all levels. https://www.bybit.com/your-affiliate-link
+    - Safe, secure, and user-friendly platform. how to trade derivatives on Bybit.
+  Final URL (Placeholder): https://www.bybit.com/your-affiliate-link
+  Display URL (Simulated): www.bybit.com/Trade
+  Notes: Ad focusing on: A Beginner's Guide to Bybit futures on Bybit
+
+
+--- Google Ads API Call Simulation ---
+
+    # --- SIMULATED GOOGLE ADS API CALL ---
+    # from google.ads.googleads.client import GoogleAdsClient
+    # client = GoogleAdsClient.load_from_storage('path/to/google-ads.yaml') # Needs auth
+    # campaign_service = client.get_service('CampaignService')
+    # ad_group_ad_service = client.get_service('AdGroupAdService')
+    # ... many steps to build campaign, ad group, and ad objects ...
+    # print("Ad campaign created/updated via Google Ads API (Simulated).")
+    # --- END SIMULATION ---
+
+==================================================
