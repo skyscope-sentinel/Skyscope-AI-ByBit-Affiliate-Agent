@@ -1,2 +1,7 @@
+feat/ai-marketing-agent-foundation
 - What are NFTs and how do they work on Bybit?
 - Comparing Bybit Spot vs Futures Trading
+=======
+- Fallback Idea 1: What is Spot Trading on Bybit?
+- Fallback Idea 2: Exploring Bybit Earn for Beginners
+main
